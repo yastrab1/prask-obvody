@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Prask obvody</title>
+	<style>
+		canvas {
+			width: 600px;
+			height: 600px;
+			max-width: 100%;
+			border: 1px gray solid;
+			touch-action: none;
+		}
+
+		p {max-width: 40em}
+	</style>
+</head>
+<body>
+	<h1>Postav si vlastný obvod</h1>
+	<p><a href="index.html">Späť na všetky úlohy</a></p>
+	<canvas width="600" height="600" id="canvas"></canvas>
+	<div id="toolbar-view" hidden>
+		<button id="start-editing">Upraviť</button>
+	</div>
+	<div id="toolbar-editing">
+		<button id="finish-editing">Dokončiť úpravy</button>
+		<button id="add-wire">Pridať kábel</button>
+		<label>Pridať zariadenie: <select id="add-device">
+			<option value="-1">vyber aké</option>
+			<option value="0">vypínač</option>
+			<option value="1">žiarovku</option>
+			<option value="2">predlžovačku</option>
+			<option value="3">bránu "nie"</option>
+			<option value="4">bránu "alebo"</option>
+			<option value="5">bránu "a"</option>
+		</select></label>
+		<button id="delete-selected" disabled>Vymazať</button>
+	</div>
+</body>
+<script src="script.js"></script>
+</html>

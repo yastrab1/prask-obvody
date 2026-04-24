@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Sčítavanie | Prask obvody</title>
+	<style>
+		canvas {
+			width: 600px;
+			height: 600px;
+			max-width: 100%;
+			border: 1px gray solid;
+			touch-action: none;
+		}
+
+		p {max-width: 40em}
+	</style>
+</head>
+<body>
+	<h1>Sčítavanie</h1>
+	<p><a href="index.html">Späť na všetky úlohy</a></p>
+	<canvas width="600" height="600" id="canvas"></canvas>
+	<div id="toolbar-view" hidden>
+		<button id="start-editing">Upraviť</button>
+		<button id="test-circuit">Otestovať</button>
+	</div>
+	<div id="toolbar-editing">
+		<button id="finish-editing">Dokončiť úpravy</button>
+		<button id="add-wire">Pridať kábel</button>
+		<label>Pridať zariadenie: <select id="add-device">
+			<option value="-1">vyber aké</option>
+			<option value="0">vypínač</option>
+			<option value="1">žiarovku</option>
+			<option value="2">predlžovačku</option>
+			<option value="3">bránu "nie"</option>
+			<option value="4">bránu "alebo"</option>
+			<option value="5">bránu "a"</option>
+		</select></label>
+		<button id="delete-selected" disabled>Vymazať</button>
+	</div>
+	<p>Na vstupe máš dve trojciferné čísla <var>x</var> a <var>y</var> napísané v dvojkovej sústave. Zapnutý vypínač znamená 1, vypnutý 0. Výstup sú 4 žiarovky, ktorými máš napísať (v dvojkovej sústave) súčet <var>x</var> + <var>y</var>.</p>
+</body>
+<script src="script.js"></script>
+<script>
+	builtinCount = 10;
+	var builtinLabels = [
+		"x: tretia číslica (jednotky)",
+		"x: druhá číslica (dvojky)",
+		"x: prvá číslica (štvorky)",
+
+		"y: tretia číslica (jednotky)",
+		"y: druhá číslica (dvojky)",
+		"y: prvá číslica (štvorky)",
+
+		"x + y: štvrtá číslica (jednotky)",
+		"x + y: tretia číslica (dvojky)",
+		"x + y: druhá číslica (štvorky)",
+		"x + y: prvá číslica (osmičky)"
+	];
+
+	for (var i = 0; i < 6; ++i) deviceKinds[i] = DEVICE_KIND_SWITCH;
+	for (var i = 6; i < 10; ++i) deviceKinds[i] = DEVICE_KIND_LIGHT;
+
+	for (var i = 0; i < 3; ++i) devicePositions[i] = gridPositionFromMiddle(-5, -2 * i - 2);
+	for (var i = 0; i < 3; ++i) devicePositions[3 + i] = gridPositionFromMiddle(-5, 2 * i + 2);
+	for (var i = 0; i < 4; ++i) devicePositions[6 + i] = gridPositionFromMiddle(4, 2 * i - 3);
+
+	requestRedraw();
+
+	function solution(x) {
+		return (x >> 3) + (x % 8);
+	}
+
+	document.getElementById("test-circuit").addEventListener("click", function() {
+		if (test(6, 16, solution)) alert("Správne!");
+		else alert("Nesprávne.");
+		fillArray(nodeValues, 0);
+	})
+</script>
+</html>

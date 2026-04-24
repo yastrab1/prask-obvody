@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Switch | Prask obvody</title>
+	<style>
+		canvas {
+			width: 600px;
+			height: 600px;
+			max-width: 100%;
+			border: 1px gray solid;
+			touch-action: none;
+		}
+
+		p {max-width: 40em}
+	</style>
+</head>
+<body>
+	<h1>Switch</h1>
+	<p><a href="index.html">Späť na všetky úlohy</a></p>
+	<canvas width="600" height="600" id="canvas"></canvas>
+	<div id="toolbar-view" hidden>
+		<button id="start-editing">Upraviť</button>
+		<button id="test-circuit">Otestovať</button>
+	</div>
+	<div id="toolbar-editing">
+		<button id="finish-editing">Dokončiť úpravy</button>
+		<button id="add-wire">Pridať kábel</button>
+		<label>Pridať zariadenie: <select id="add-device">
+			<option value="-1">vyber aké</option>
+			<option value="0">vypínač</option>
+			<option value="1">žiarovku</option>
+			<option value="2">predlžovačku</option>
+			<option value="3">bránu "nie"</option>
+			<option value="4">bránu "alebo"</option>
+			<option value="5">bránu "a"</option>
+		</select></label>
+		<button id="delete-selected" disabled>Vymazať</button>
+	</div>
+	<p>Tu máš tri vstupy: <dfn>prepínač</dfn> a dve <dfn>hodnoty</dfn>. Prepínač určuje, ktorú hodnotu chceme dostať na výstup. Ak je prepínač vypnutý, tak žiarovka má byť v takom stave ako hodnota 1. Ak je vypínač zapnutý, tak žiarovka má byť v takom stave ako hodnota 2.</p>
+</body>
+<script src="script.js"></script>
+<script>
+	builtinCount = 4;
+	var builtinLabels = ["prepínač", "hodnota 1", "hodnota 2", "výsledok"];
+
+	deviceKinds[0] = DEVICE_KIND_SWITCH;
+	devicePositions[0] = gridPositionFromMiddle(-5, -2);
+
+	deviceKinds[1] = DEVICE_KIND_SWITCH;
+	devicePositions[1] = gridPositionFromMiddle(-5, 0);
+
+	deviceKinds[2] = DEVICE_KIND_SWITCH;
+	devicePositions[2] = gridPositionFromMiddle(-5, 2);
+
+	deviceKinds[3] = DEVICE_KIND_LIGHT;
+	devicePositions[3] = gridPositionFromMiddle(4, 0);
+
+	requestRedraw();
+
+	function solution(x) {
+		return x === 2 || x >= 5 ? 1 : 0;
+	}
+
+	document.getElementById("test-circuit").addEventListener("click", function() {
+		if (test(3, 16, solution)) alert("Správne!");
+		else alert("Nesprávne.");
+		fillArray(nodeValues, 0);
+	})
+</script>
+</html>
