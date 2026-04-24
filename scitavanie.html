@@ -42,7 +42,7 @@
 </body>
 <script src="script.js"></script>
 <script>
-	builtinCount = 10;
+	gameState.builtinCount = 10;
 	var builtinLabels = [
 		"x: tretia číslica (jednotky)",
 		"x: druhá číslica (dvojky)",
@@ -58,12 +58,12 @@
 		"x + y: prvá číslica (osmičky)"
 	];
 
-	for (var i = 0; i < 6; ++i) deviceKinds[i] = DEVICE_KIND_SWITCH;
-	for (var i = 6; i < 10; ++i) deviceKinds[i] = DEVICE_KIND_LIGHT;
+	for (var i = 0; i < 6; ++i) gameState.deviceKinds[i] = DEVICE_KIND_SWITCH;
+	for (var i = 6; i < 10; ++i) gameState.deviceKinds[i] = DEVICE_KIND_LIGHT;
 
-	for (var i = 0; i < 3; ++i) devicePositions[i] = gridPositionFromMiddle(-5, -2 * i - 2);
-	for (var i = 0; i < 3; ++i) devicePositions[3 + i] = gridPositionFromMiddle(-5, 2 * i + 2);
-	for (var i = 0; i < 4; ++i) devicePositions[6 + i] = gridPositionFromMiddle(4, 2 * i - 3);
+	for (var i = 0; i < 3; ++i) gameState.devicePositions[i] = gridPositionFromMiddle(-5, -2 * i - 2);
+	for (var i = 0; i < 3; ++i) gameState.devicePositions[3 + i] = gridPositionFromMiddle(-5, 2 * i + 2);
+	for (var i = 0; i < 4; ++i) gameState.devicePositions[6 + i] = gridPositionFromMiddle(4, 2 * i - 3);
 
 	requestRedraw();
 
@@ -74,7 +74,7 @@
 	document.getElementById("test-circuit").addEventListener("click", function() {
 		if (test(6, 16, solution)) alert("Správne!");
 		else alert("Nesprávne.");
-		fillArray(nodeValues, 0);
+		fillArray(gameState.nodeValues, false);
 	})
 </script>
 </html>

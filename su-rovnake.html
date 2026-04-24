@@ -37,22 +37,23 @@
 			<option value="5">bránu "a"</option>
 		</select></label>
 		<button id="delete-selected" disabled>Vymazať</button>
+		<button id="save">Uložiť</button>
 	</div>
 	<p>Postav taký obvod, aby žiarovka svietila práve vtedy, keď sú oba vypínače v rovnakom stave (teda oba zapnuté alebo oba vypnuté).</p>
 </body>
 <script src="script.js"></script>
 <script>
-	builtinCount = 3;
+	gameState.builtinCount = 3;
 	var builtinLabels = ["vstup 1", "vstup 2", "výsledok"];
 
-	deviceKinds[0] = DEVICE_KIND_SWITCH;
-	devicePositions[0] = gridPositionFromMiddle(-5, -1);
+	gameState.deviceKinds[0] = DEVICE_KIND_SWITCH;
+	gameState.devicePositions[0] = gridPositionFromMiddle(-5, -1);
 
-	deviceKinds[1] = DEVICE_KIND_SWITCH;
-	devicePositions[1] = gridPositionFromMiddle(-5, 1);
+	gameState.deviceKinds[1] = DEVICE_KIND_SWITCH;
+	gameState.devicePositions[1] = gridPositionFromMiddle(-5, 1);
 
-	deviceKinds[2] = DEVICE_KIND_LIGHT;
-	devicePositions[2] = gridPositionFromMiddle(4, 0);
+	gameState.deviceKinds[2] = DEVICE_KIND_LIGHT;
+	gameState.devicePositions[2] = gridPositionFromMiddle(4, 0);
 
 	requestRedraw();
 
@@ -63,7 +64,7 @@
 	document.getElementById("test-circuit").addEventListener("click", function() {
 		if (test(2, 16, solution)) alert("Správne!");
 		else alert("Nesprávne.");
-		fillArray(nodeValues, 0);
+		fillArray(gameState.nodeValues, false);
 	})
 </script>
 </html>

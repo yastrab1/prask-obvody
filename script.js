@@ -38,20 +38,95 @@ var GATE_LABELS = [null, null, null, "nie", "alebo", "a"];
 var canvasWidth = 600;
 var canvasHeight = 600;
 
+var GAME_STORAGE_KEY = "gameData";
+
 // Used for initialization
 function fillArray(array, value) {
 	for (var i = 0; i < array.length; ++i) array[i] = value;
 }
 
+function makeFilledArray(length, value) {
+	var array = Array(length);
+	fillArray(array, value);
+	return array;
+}
+
+function createDefaultGameState() {
+	return {
+		devicePositions: makeFilledArray(MAX_DEVICES, -1),
+		deviceKinds: makeFilledArray(MAX_DEVICES, DEVICE_KIND_NONE),
+		nodeValues: makeFilledArray(3 * MAX_DEVICES, false),
+		wires: makeFilledArray(2 * MAX_WIRES, -1),
+		wireStack: makeFilledArray(MAX_WIRES, -1),
+		wireCount: 0,
+		viewOffsetX: 0,
+		viewOffsetY: 0,
+		viewScale: 1,
+		builtinCount: 0
+	};
+}
+
+function countUsedWiresFromStack(stack) {
+	var count = 0;
+	for (var i = 0; i < stack.length; ++i) {
+		if (stack[i] === -1) break;
+		++count;
+	}
+	return count;
+}
+
+function normalizeLoadedGameState(rawGameState) {
+	var defaults = createDefaultGameState();
+	if (!rawGameState || typeof rawGameState !== "object") return defaults;
+
+	defaults.devicePositions = Array.isArray(rawGameState.devicePositions)
+		? rawGameState.devicePositions.slice(0, MAX_DEVICES)
+		: defaults.devicePositions;
+	while (defaults.devicePositions.length < MAX_DEVICES) defaults.devicePositions.push(-1);
+
+	defaults.deviceKinds = Array.isArray(rawGameState.deviceKinds)
+		? rawGameState.deviceKinds.slice(0, MAX_DEVICES)
+		: defaults.deviceKinds;
+	while (defaults.deviceKinds.length < MAX_DEVICES) defaults.deviceKinds.push(DEVICE_KIND_NONE);
+
+	defaults.nodeValues = Array.isArray(rawGameState.nodeValues)
+		? rawGameState.nodeValues.slice(0, 3 * MAX_DEVICES)
+		: defaults.nodeValues;
+	while (defaults.nodeValues.length < 3 * MAX_DEVICES) defaults.nodeValues.push(false);
+
+	defaults.wires = Array.isArray(rawGameState.wires)
+		? rawGameState.wires.slice(0, 2 * MAX_WIRES)
+		: defaults.wires;
+	while (defaults.wires.length < 2 * MAX_WIRES) defaults.wires.push(-1);
+
+	defaults.wireStack = Array.isArray(rawGameState.wireStack)
+		? rawGameState.wireStack.slice(0, MAX_WIRES)
+		: defaults.wireStack;
+	while (defaults.wireStack.length < MAX_WIRES) defaults.wireStack.push(-1);
+
+	defaults.wireCount = typeof rawGameState.wireCount === "number"
+		? clamp(0, Math.floor(rawGameState.wireCount), MAX_WIRES)
+		: countUsedWiresFromStack(defaults.wireStack);
+	defaults.viewOffsetX = typeof rawGameState.viewOffsetX === "number" ? rawGameState.viewOffsetX : defaults.viewOffsetX;
+	defaults.viewOffsetY = typeof rawGameState.viewOffsetY === "number" ? rawGameState.viewOffsetY : defaults.viewOffsetY;
+	defaults.viewScale = typeof rawGameState.viewScale === "number" ? rawGameState.viewScale : defaults.viewScale;
+	defaults.builtinCount = typeof rawGameState.builtinCount === "number"
+		? clamp(0, Math.floor(rawGameState.builtinCount), MAX_DEVICES)
+		: defaults.builtinCount;
+
+	return defaults;
+}
+
+var gameState = createDefaultGameState();
+
+function saveGameStateToStorage() {
+	localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(gameState));
+}
+
 // Arrays of things
-var devicePositions = Array(MAX_DEVICES); fillArray(devicePositions, -1);
-var deviceKinds = Array(MAX_DEVICES); fillArray(deviceKinds, DEVICE_KIND_NONE);
-var nodeValues = Array(3 * MAX_DEVICES); fillArray(nodeValues, false);
-var wires = Array(2 * MAX_WIRES); fillArray(wires, -1);
-var wireStack = Array(MAX_WIRES); fillArray(wireStack, -1);
 
 // Description of arrays in undo history
-var ARRAYS_ALL = [devicePositions, deviceKinds, wires];
+var ARRAYS_ALL = [];
 var ARRAY_DEVICE_POSITIONS = 0;
 var ARRAY_DEVICE_KINDS = 1;
 var ARRAY_WIRES = 2;
@@ -63,7 +138,6 @@ var undoValueAfter = Array(UNDO_DEPTH); fillArray(undoValueAfter, -1);
 var undoBatchStart = Array(UNDO_DEPTH); fillArray(undoBatchStart, -1);
 
 // Positions within arrays
-var wireCount = 0;
 var undoStackTop = -1;
 var undoCurrentDepth = 0;
 
@@ -77,6 +151,7 @@ var buttonStartEditing = document.getElementById("start-editing");
 var buttonFinishEditing = document.getElementById("finish-editing");
 var toolbarView = document.getElementById("toolbar-view");
 var toolbarEditing = document.getElementById("toolbar-editing");
+var saveButton = document.getElementById("save");
 var simulationTimerHandle = null;
 
 // Current selection and action
@@ -106,50 +181,45 @@ var dragOriginY = 0;
 var dragPointerId = -2;
 
 // Current view
-var viewOffsetX = 0;
-var viewOffsetY = 0;
-var viewScale = 1;
 
 var simulationTimeout = 30;
-
-var builtinCount = 0;
 
 var pendingRedraw = false;
 
 function simulateStep() {
 	for (var i = 0; i < MAX_DEVICES; ++i) {
-		switch (deviceKinds[i]) {
+		switch (gameState.deviceKinds[i]) {
 			case DEVICE_KIND_EXTENSION:
-				nodeValues[3 * i + 2] = nodeValues[3 * i];
+				gameState.nodeValues[3 * i + 2] = gameState.nodeValues[3 * i];
 			break;
 			case DEVICE_KIND_NOT_GATE:
-				nodeValues[3 * i + 2] = !nodeValues[3 * i];
+				gameState.nodeValues[3 * i + 2] = !gameState.nodeValues[3 * i];
 			break;
 			case DEVICE_KIND_OR_GATE:
-				nodeValues[3 * i + 2] = nodeValues[3 * i] || nodeValues[3 * i + 1];
+				gameState.nodeValues[3 * i + 2] = gameState.nodeValues[3 * i] || gameState.nodeValues[3 * i + 1];
 			break;
 			case DEVICE_KIND_AND_GATE:
-				nodeValues[3 * i + 2] = nodeValues[3 * i] && nodeValues[3 * i + 1];
+				gameState.nodeValues[3 * i + 2] = gameState.nodeValues[3 * i] && gameState.nodeValues[3 * i + 1];
 			break;
 		}
 	}
 	for (var i = 0; i < MAX_WIRES; ++i) {
-		if (wires[2 * i] === -1 || wires[2 * i + 1] === -1) continue;
-		nodeValues[wires[2 * i + 1]] = nodeValues[wires[2 * i]];
+		if (gameState.wires[2 * i] === -1 || gameState.wires[2 * i + 1] === -1) continue;
+		gameState.nodeValues[gameState.wires[2 * i + 1]] = gameState.nodeValues[gameState.wires[2 * i]];
 	}
 }
 
 // Tests a circuit that's supposed to be a pure function of its inputs
 function test(inputCount, timeLimit, testingFunction) {
 	for (var input = 0; input < 1 << inputCount; ++input) {
-		fillArray(nodeValues, false);
+		fillArray(gameState.nodeValues, false);
 		for (var i = 0; i < inputCount; ++i) {
-			nodeValues[3 * i + 2] = (input & (1 << i)) > 0;
+			gameState.nodeValues[3 * i + 2] = (input & (1 << i)) > 0;
 		}
 		for (var i = 0; i < timeLimit; ++i) simulateStep();
 		output = 0;
-		for (var i = 0; i < builtinCount - inputCount; ++i) {
-			output |= (nodeValues[3 * (inputCount + i)] ? 1 : 0) << i;
+		for (var i = 0; i < gameState.builtinCount - inputCount; ++i) {
+			output |= (gameState.nodeValues[3 * (inputCount + i)] ? 1 : 0) << i;
 		}
 		if (output !== testingFunction(input)) {
 			console.log("input", input, "expected", testingFunction(input), "got", output);
@@ -195,8 +265,8 @@ function clamp(lower, value, upper) {
 }
 
 function screenToGridPosition(screenX, screenY) {
-	var gridX = clamp(0, Math.floor((screenX + viewOffsetX) / viewScale / GRID_CELL_SIZE + 0.5), GRID_SIZE - 1);
-	var gridY = clamp(0, Math.floor((screenY + viewOffsetY) / viewScale / GRID_CELL_SIZE + 0.5), GRID_SIZE - 1);
+	var gridX = clamp(0, Math.floor((screenX + gameState.viewOffsetX) / gameState.viewScale / GRID_CELL_SIZE + 0.5), GRID_SIZE - 1);
+	var gridY = clamp(0, Math.floor((screenY + gameState.viewOffsetY) / gameState.viewScale / GRID_CELL_SIZE + 0.5), GRID_SIZE - 1);
 	return GRID_SIZE * gridY + gridX;
 }
 
@@ -212,7 +282,7 @@ function screenToGridPositionUntransformed(screenX, screenY) {
 }
 
 function doesNodeExist(node) {
-	var deviceKind = deviceKinds[Math.floor(node / 3)];
+	var deviceKind = gameState.deviceKinds[Math.floor(node / 3)];
 	if (deviceKind === DEVICE_KIND_NONE) return false;
 	var nodeOffset = node % 3;
 	if (
@@ -225,18 +295,18 @@ function doesNodeExist(node) {
 function getNodePosition(node) {
 	var device = Math.floor(node / 3);
 	if (node % 3 === 2) {
-		var kind = deviceKinds[device];
-		return devicePositions[device] + GRID_SIZE * DEVICE_INPUT_COUNT[kind] + 1;
+		var kind = gameState.deviceKinds[device];
+		return gameState.devicePositions[device] + GRID_SIZE * DEVICE_INPUT_COUNT[kind] + 1;
 	}
-	return devicePositions[device] + GRID_SIZE * (node % 3);
+	return gameState.devicePositions[device] + GRID_SIZE * (node % 3);
 }
 
 function drawDevice(index, dx, dy, isSelected) {
-	var kind = deviceKinds[index];
+	var kind = gameState.deviceKinds[index];
 	var width = 2;
 	var height = DEVICE_INPUT_COUNT[kind] + DEVICE_OUTPUT_COUNT[kind];
 
-	var position = devicePositions[index];
+	var position = gameState.devicePositions[index];
 	var screenX = gridToScreenX(position) + dx;
 	var screenY = gridToScreenY(position) + dy;
 
@@ -253,7 +323,7 @@ function drawDevice(index, dx, dy, isSelected) {
 	drawingContext.stroke();
 
 	// For builtin devices, draw their labels
-	if (index < builtinCount) {
+	if (index < gameState.builtinCount) {
 		drawingContext.textAlign = "center";
 		drawingContext.textBaseline = "bottom";
 		drawingContext.font = "14px system-ui";
@@ -266,7 +336,7 @@ function drawDevice(index, dx, dy, isSelected) {
 
 	switch (kind) {
 		case DEVICE_KIND_SWITCH:
-			drawingContext.fillStyle = nodeValues[3 * index + 2] ? COLOR_ON : COLOR_OFF;
+			drawingContext.fillStyle = gameState.nodeValues[3 * index + 2] ? COLOR_ON : COLOR_OFF;
 			drawingContext.strokeStyle = "gray";
 			drawRoundedRect(
 				screenX - SWITCH_TOGGLE_HEIGHT / 2, screenY - SWITCH_TOGGLE_HEIGHT / 2,
@@ -276,7 +346,7 @@ function drawDevice(index, dx, dy, isSelected) {
 			drawingContext.stroke();
 			drawingContext.fillStyle = "white";
 			drawRoundedRect(
-				screenX - SWITCH_TOGGLE_HEIGHT / 2 + (SWITCH_TOGGLE_WIDTH - SWITCH_TOGGLE_HEIGHT) * nodeValues[3 * index + 2],
+				screenX - SWITCH_TOGGLE_HEIGHT / 2 + (SWITCH_TOGGLE_WIDTH - SWITCH_TOGGLE_HEIGHT) * gameState.nodeValues[3 * index + 2],
 				screenY - SWITCH_TOGGLE_HEIGHT / 2,
 				SWITCH_TOGGLE_HEIGHT, SWITCH_TOGGLE_HEIGHT, SWITCH_TOGGLE_HEIGHT / 2
 			);
@@ -284,7 +354,7 @@ function drawDevice(index, dx, dy, isSelected) {
 			drawingContext.stroke();
 		break;
 		case DEVICE_KIND_LIGHT:
-			drawingContext.fillStyle = nodeValues[3 * index] ? COLOR_ON : COLOR_OFF;
+			drawingContext.fillStyle = gameState.nodeValues[3 * index] ? COLOR_ON : COLOR_OFF;
 			drawingContext.strokeStyle = "gray";
 			drawRoundedRect(
 				screenX - SWITCH_TOGGLE_HEIGHT / 2 + GRID_CELL_SIZE, screenY - SWITCH_TOGGLE_HEIGHT / 2,
@@ -307,7 +377,7 @@ function drawDevice(index, dx, dy, isSelected) {
 	drawingContext.lineWidth = NODE_BORDER_WIDTH;
 	for (var j = 0; j < DEVICE_INPUT_COUNT[kind]; ++j) {
 		drawCircle(screenX, screenY + j * GRID_CELL_SIZE, NODE_RADIUS);
-		drawingContext.fillStyle = nodeValues[3 * index + j] ? COLOR_ON : COLOR_OFF;
+		drawingContext.fillStyle = gameState.nodeValues[3 * index + j] ? COLOR_ON : COLOR_OFF;
 		drawingContext.fill();
 		drawingContext.stroke();
 	}
@@ -316,7 +386,7 @@ function drawDevice(index, dx, dy, isSelected) {
 			screenX + (width - 1) * GRID_CELL_SIZE,
 			screenY + (height - j - 1) * GRID_CELL_SIZE, NODE_RADIUS
 		);
-		drawingContext.fillStyle = nodeValues[3 * index + 2 + j] ? COLOR_ON : COLOR_OFF;
+		drawingContext.fillStyle = gameState.nodeValues[3 * index + 2 + j] ? COLOR_ON : COLOR_OFF;
 		drawingContext.fill();
 		drawingContext.stroke();
 	}
@@ -335,8 +405,8 @@ function drawWirePart(x0, y0, x1, y1, color, width, radius) {
 }
 
 function drawWire(index, dx0, dy0, dx1, dy1, isSelected) {
-	var startNode = wires[2 * index];
-	var endNode = wires[2 * index + 1];
+	var startNode = gameState.wires[2 * index];
+	var endNode = gameState.wires[2 * index + 1];
 
 	var startPosition = getNodePosition(startNode);
 	var endPosition = getNodePosition(endNode);
@@ -351,7 +421,7 @@ function drawWire(index, dx0, dy0, dx1, dy1, isSelected) {
 		WIRE_NODE_OUTER_RADIUS + isSelected
 	);
 	drawWirePart(
-		x0, y0, x1, y1, nodeValues[startNode] ? COLOR_ON : COLOR_OFF,
+		x0, y0, x1, y1, gameState.nodeValues[startNode] ? COLOR_ON : COLOR_OFF,
 		WIRE_INNER_WIDTH, WIRE_NODE_INNER_RADIUS
 	)
 }
@@ -365,33 +435,33 @@ function draw() {
 	drawingContext.clearRect(0, 0, canvasWidth, canvasHeight);
 
 	// Draw the grid
-	var scaledCellSize = GRID_CELL_SIZE * viewScale;
+	var scaledCellSize = GRID_CELL_SIZE * gameState.viewScale;
 	var gridDotCount = canvasWidth / scaledCellSize * canvasHeight / scaledCellSize;
 	if (gridDotCount <= MAX_GRID_DOTS) {
 		drawingContext.fillStyle = "lightgray";
-		for (var gridDotY = (-viewOffsetY % scaledCellSize) - scaledCellSize; gridDotY < canvasHeight + scaledCellSize; gridDotY += scaledCellSize) {
-			for (var gridDotX = (-viewOffsetX % scaledCellSize) - scaledCellSize; gridDotX < canvasWidth + scaledCellSize; gridDotX += scaledCellSize) {
-				drawCircle(gridDotX, gridDotY, GRID_DOT_RADIUS * viewScale);
+		for (var gridDotY = (-gameState.viewOffsetY % scaledCellSize) - scaledCellSize; gridDotY < canvasHeight + scaledCellSize; gridDotY += scaledCellSize) {
+			for (var gridDotX = (-gameState.viewOffsetX % scaledCellSize) - scaledCellSize; gridDotX < canvasWidth + scaledCellSize; gridDotX += scaledCellSize) {
+				drawCircle(gridDotX, gridDotY, GRID_DOT_RADIUS * gameState.viewScale);
 				drawingContext.fill();
 			}
 		}
 	}
 
 	drawingContext.setTransform(
-		viewScale * devicePixelRatio, 0, 0, viewScale * devicePixelRatio,
-		-viewOffsetX * devicePixelRatio, -viewOffsetY * devicePixelRatio
+		gameState.viewScale * devicePixelRatio, 0, 0, gameState.viewScale * devicePixelRatio,
+		-gameState.viewOffsetX * devicePixelRatio, -gameState.viewOffsetY * devicePixelRatio
 	);
 
 	// Draw devices
 	for (var i = 0; i < MAX_DEVICES; ++i) {
 		if (i === draggedDevice) continue;
-		if (deviceKinds[i] == DEVICE_KIND_NONE) continue;
+		if (gameState.deviceKinds[i] == DEVICE_KIND_NONE) continue;
 		drawDevice(i, 0, 0, selectedDevice === i);
 	}
 
 	// If dragging a device, draw its shadow at its target position
 	if (draggedDevice !== -1) {
-		var draggedKind = deviceKinds[draggedDevice];
+		var draggedKind = gameState.deviceKinds[draggedDevice];
 		var draggedWidth = 2;
 		var draggedHeight = DEVICE_INPUT_COUNT[draggedKind] + DEVICE_OUTPUT_COUNT[draggedKind];
 
@@ -408,13 +478,13 @@ function draw() {
 		drawingContext.fill();
 	}
 
-	// Draw wires
-	for (var i = 0; i < wireCount; ++i) {
-		var wire = wireStack[i];
+	// Draw gameState.wires
+	for (var i = 0; i < gameState.wireCount; ++i) {
+		var wire = gameState.wireStack[i];
 		if (wire === Math.floor(draggedWireEnd / 2)) continue;
 
-		var wireStartDevice = Math.floor(wires[2 * wire] / 3);
-		var wireEndDevice = Math.floor(wires[2 * wire + 1] / 3);
+		var wireStartDevice = Math.floor(gameState.wires[2 * wire] / 3);
+		var wireEndDevice = Math.floor(gameState.wires[2 * wire + 1] / 3);
 
 		if (wireStartDevice === draggedDevice || wireEndDevice === draggedDevice) continue;
 		drawWire(wire, 0, 0, 0, 0, selectedWire === wire);
@@ -424,13 +494,13 @@ function draw() {
 	if (draggedDevice !== -1) {
 		drawDevice(draggedDevice, dragCurrentX - dragOriginX, dragCurrentY - dragOriginY, true);
 
-		// Draw wires connected to it
-		for (var i = 0; i < wireCount; ++i) {
-			var wire = wireStack[i];
+		// Draw gameState.wires connected to it
+		for (var i = 0; i < gameState.wireCount; ++i) {
+			var wire = gameState.wireStack[i];
 
 			var dx0 = 0, dy0 = 0, dx1 = 0, dy1 = 0;
-			var wireStartDevice = Math.floor(wires[2 * wire] / 3);
-			var wireEndDevice = Math.floor(wires[2 * wire + 1] / 3);
+			var wireStartDevice = Math.floor(gameState.wires[2 * wire] / 3);
+			var wireEndDevice = Math.floor(gameState.wires[2 * wire + 1] / 3);
 			if (wireStartDevice !== draggedDevice && wireEndDevice !== draggedDevice) continue;
 			if (wireStartDevice === draggedDevice) {
 				dx0 = dragCurrentX - dragOriginX;
@@ -484,15 +554,21 @@ function DEBUG_MEASURE_TIME(description, callback) {
 
 // TODO: make it so that view is anchored to the center of the canvas
 function resetView() {
-	viewScale = 1;
-	viewOffsetX = (GRID_CELL_SIZE * GRID_SIZE - canvasWidth) / 2;
-	viewOffsetY = (GRID_CELL_SIZE * GRID_SIZE - canvasHeight) / 2;
+	gameState.viewScale = 1;
+	gameState.viewOffsetX = (GRID_CELL_SIZE * GRID_SIZE - canvasWidth) / 2;
+	gameState.viewOffsetY = (GRID_CELL_SIZE * GRID_SIZE - canvasHeight) / 2;
 }
 
 window.addEventListener("resize", function() {
 	updateCanvasSize();
 	requestRedraw();
 });
+
+window.addEventListener("load",function() {
+	if (localStorage.getItem(GAME_STORAGE_KEY) !== null){
+		loadFromString(localStorage.getItem(GAME_STORAGE_KEY))
+	}
+})
 
 // If pointer events are supported, we use only those
 if (PointerEvent) {
@@ -504,10 +580,10 @@ if (PointerEvent) {
 		if (addingDevice !== -1) {
 			// Find a free slot in the array to put it
 			for (var i = 0; i < MAX_DEVICES; ++i) {
-				if (deviceKinds[i] === DEVICE_KIND_NONE) {
+				if (gameState.deviceKinds[i] === DEVICE_KIND_NONE) {
 					// TODO: find a place that doesn't intersect
-					deviceKinds[i] = addingDevice;
-					devicePositions[i] = selectedPosition;
+					gameState.deviceKinds[i] = addingDevice;
+					gameState.devicePositions[i] = selectedPosition;
 					// addingDevice = -1;
 					// selectAddDevice.value = "-1";
 					requestRedraw();
@@ -520,7 +596,7 @@ if (PointerEvent) {
 
 		if (addingWire) {
 			// Find a free slot in the array to put it
-			if (wireCount === MAX_WIRES) {
+			if (gameState.wireCount === MAX_WIRES) {
 				addingWire = false;
 				buttonAddWire.disabled = false;
 				return;
@@ -532,7 +608,7 @@ if (PointerEvent) {
 				// If it's an input, check if there already isn't a wire connected
 				if (i % 3 < 2) {
 					for (var j = 0; j < MAX_WIRES; ++j) {
-						if (wires[j] === i) {
+						if (gameState.wires[j] === i) {
 							// addingWire = false;
 							buttonAddWire.disabled = false;
 							return;
@@ -542,10 +618,11 @@ if (PointerEvent) {
 				var isOutputNode = i % 3 < 2 ? 0 : 1;
 				// Find a place in the array to put it
 				for (var j = 0; j < MAX_WIRES; ++j) {
-					if (wires[2 * j] === -1) {
-						wires[2 * j] = i;
-						wires[2 * j + 1] = i;
-						wireStack[wireCount++] = j;
+					if (gameState.wires[2 * j] === -1) {
+						gameState.wires[2 * j] = i;
+						gameState.wires[2 * j + 1] = i;
+						gameState.wireStack[gameState.wireCount] = j;
+						gameState.wireCount = gameState.wireCount + 1;
 						draggedWireEnd = 2 * j + isOutputNode;
 						dragOriginX = event.offsetX;
 						dragOriginY = event.offsetY;
@@ -576,7 +653,9 @@ if (PointerEvent) {
 		// If not editing, we check if we're tapping a light switch
 		if (!editing) {
 			for (var i = 0; i < MAX_DEVICES; ++i) {
-				if (deviceKinds[i] === DEVICE_KIND_SWITCH && devicePositions[i] === selectedPosition) nodeValues[3 * i + 2] = !nodeValues[3 * i + 2];
+				if (gameState.deviceKinds[i] === DEVICE_KIND_SWITCH && gameState.devicePositions[i] === selectedPosition) {
+					gameState.nodeValues[3 * i + 2] = !gameState.nodeValues[3 * i + 2];
+				}
 			}
 		}
 
@@ -586,20 +665,20 @@ if (PointerEvent) {
 
 			// First we try wire
 			// We go down the stack, so we first catch the topmost wire
-			for (var i = wireCount - 1; i >= 0; --i) {
-				var wire = wireStack[i];
+			for (var i = gameState.wireCount - 1; i >= 0; --i) {
+				var wire = gameState.wireStack[i];
 				for (var j = 0; j < 2; ++j) {
-					var wireNode = wires[2 * wire + j];
+					var wireNode = gameState.wires[2 * wire + j];
 					if (getNodePosition(wireNode) === selectedPosition) {
 						draggedWireEnd = 2 * wire + j;
 						selectedWire = wire;
 						selectedDevice = -1;
 						buttonDelete.disabled = false;
 						// now we put it on top of the stack
-						for (var k = i + 1; k < wireCount; ++k) {
-							wireStack[k - 1] = wireStack[k];
+						for (var k = i + 1; k < gameState.wireCount; ++k) {
+							gameState.wireStack[k - 1] = gameState.wireStack[k];
 						}
-						wireStack[wireCount - 1] = wire;
+						gameState.wireStack[gameState.wireCount - 1] = wire;
 						requestRedraw();
 						return;
 					}
@@ -608,13 +687,13 @@ if (PointerEvent) {
 
 			// If no wire found, then we try device
 			for (var i = 0; i < MAX_DEVICES; ++i) {
-				var deviceKind = deviceKinds[i];
+				var deviceKind = gameState.deviceKinds[i];
 				if (deviceKind === -1) continue;
 
 				var selectedX = selectedPosition % GRID_SIZE;
 				var selectedY = Math.floor(selectedPosition / GRID_SIZE);
-				var deviceX = devicePositions[i] % GRID_SIZE;
-				var deviceY = Math.floor(devicePositions[i] / GRID_SIZE);
+				var deviceX = gameState.devicePositions[i] % GRID_SIZE;
+				var deviceY = Math.floor(gameState.devicePositions[i] / GRID_SIZE);
 				var deviceHeight = DEVICE_INPUT_COUNT[deviceKind] + DEVICE_OUTPUT_COUNT[deviceKind];
 
 				if (
@@ -622,10 +701,10 @@ if (PointerEvent) {
 					deviceY <= selectedY && selectedY < deviceY + deviceHeight
 				) {
 					draggedDevice = i;
-					draggedDeviceTargetPosition = devicePositions[draggedDevice];
+					draggedDeviceTargetPosition = gameState.devicePositions[draggedDevice];
 					selectedDevice = i;
 					selectedWire = -1;
-					buttonDelete.disabled = selectedDevice < builtinCount;
+					buttonDelete.disabled = selectedDevice < gameState.builtinCount;
 					requestRedraw();
 					return;
 				}
@@ -639,9 +718,9 @@ if (PointerEvent) {
 		buttonDelete.disabled = true;
 
 		draggingView = true;
-		viewAnchorX = viewOffsetX;
-		viewAnchorY = viewOffsetY;
-		viewAnchorScale = viewScale;
+		viewAnchorX = gameState.viewOffsetX;
+		viewAnchorY = gameState.viewOffsetY;
+		viewAnchorScale = gameState.viewScale;
 		requestRedraw();
 	});
 
@@ -651,13 +730,13 @@ if (PointerEvent) {
 		dragCurrentX = event.offsetX;
 		dragCurrentY = event.offsetY;
 		if (draggedDevice !== -1) {
-			var originalDevicePosition = devicePositions[draggedDevice];
+			var originalDevicePosition = gameState.devicePositions[draggedDevice];
 			var selectedPosition = screenToGridPositionUntransformed(
 				gridToScreenX(originalDevicePosition) + event.offsetX - dragOriginX,
 				gridToScreenY(originalDevicePosition) + event.offsetY - dragOriginY
 			);
 			// see if the device intersects anything
-			var deviceKind = deviceKinds[draggedDevice];
+			var deviceKind = gameState.deviceKinds[draggedDevice];
 			var deviceWidth = 2;
 			var deviceHeight = DEVICE_INPUT_COUNT[deviceKind] + DEVICE_OUTPUT_COUNT[deviceKind];
 			var deviceX = selectedPosition % GRID_SIZE;
@@ -665,12 +744,12 @@ if (PointerEvent) {
 			var isIntersecting = false;
 			for (var i = 0; i < MAX_DEVICES; ++i) {
 				if (i === draggedDevice) continue;
-				var otherKind = deviceKinds[i];
+				var otherKind = gameState.deviceKinds[i];
 				if (otherKind === DEVICE_KIND_NONE) continue;
 				var otherWidth = 2;
 				var otherHeight = DEVICE_INPUT_COUNT[otherKind] + DEVICE_OUTPUT_COUNT[otherKind];
-				var otherX = devicePositions[i] % GRID_SIZE;
-				var otherY = Math.floor(devicePositions[i] / GRID_SIZE);
+				var otherX = gameState.devicePositions[i] % GRID_SIZE;
+				var otherY = Math.floor(gameState.devicePositions[i] / GRID_SIZE);
 
 				if (
 					otherX < deviceX + deviceWidth && otherY < deviceY + deviceHeight &&
@@ -683,8 +762,8 @@ if (PointerEvent) {
 			if (!isIntersecting) draggedDeviceTargetPosition = selectedPosition;
 		}
 		if (draggingView) {
-			viewOffsetX = viewAnchorX - dragCurrentX + dragOriginX;
-			viewOffsetY = viewAnchorY - dragCurrentY + dragOriginY;
+			gameState.viewOffsetX = viewAnchorX - dragCurrentX + dragOriginX;
+			gameState.viewOffsetY = viewAnchorY - dragCurrentY + dragOriginY;
 		}
 		requestRedraw();
 	});
@@ -693,7 +772,9 @@ if (PointerEvent) {
 		if (event.pointerId === dragPointerId) dragPointerId = -2;
 		canvas.releasePointerCapture(event.pointerId);
 		if (draggedDevice !== -1) {
-			devicePositions[draggedDevice] = draggedDeviceTargetPosition;
+			if (gameState.devicePositions[draggedDevice] !== draggedDeviceTargetPosition) {
+				gameState.devicePositions[draggedDevice] = draggedDeviceTargetPosition;
+			}
 			draggedDevice = -1;
 		}
 		if (draggedWireEnd !== -1) {
@@ -707,19 +788,23 @@ if (PointerEvent) {
 					// If the wire end is an end, it can only be plugged where there is nothing else
 					if (targetWireEnd === 1) {
 						for (var j = 0; j < 2 * MAX_WIRES; ++j) {
-							if (wires[j] === -1) continue;
-							if (wires[j] === i) continue finding_node;
+							if (gameState.wires[j] === -1) continue;
+							if (gameState.wires[j] === i) continue finding_node;
 						}
 					}
-					wires[draggedWireEnd] = i;
+					if (gameState.wires[draggedWireEnd] !== i) {
+						gameState.wires[draggedWireEnd] = i;
+					}
 				}
 			}
 			var draggedWire = Math.floor(draggedWireEnd / 2)
-			// Special case for wires being just added
-			if (wires[2 * draggedWire] === wires[2 * draggedWire + 1]) deleteWire(draggedWire);
+			// Special case for gameState.wires being just added
+			if (gameState.wires[2 * draggedWire] === gameState.wires[2 * draggedWire + 1]) deleteWire(draggedWire);
 			draggedWireEnd = -1;
 		}
-		if (draggingView) draggingView = false;
+		if (draggingView) {
+			draggingView = false;
+		}
 		requestRedraw();
 	});
 }
@@ -729,24 +814,41 @@ else {
 }
 
 function deleteWire(wire) {
-	wires[2 * wire] = -1;
-	wires[2 * wire + 1] = -1;
+	gameState.wires[2 * wire] = -1;
+	gameState.wires[2 * wire + 1] = -1;
 	// remove the wire from the stack
-	for (var i = 0; i < wireCount; ++i) {
-		if (wireStack[i] === wire) {
-			for (var j = i + 1; j < wireCount; ++j) {
-				wireStack[j - 1] = wireStack[j];
+	for (var i = 0; i < gameState.wireCount; ++i) {
+		if (gameState.wireStack[i] === wire) {
+			for (var j = i + 1; j < gameState.wireCount; ++j) {
+				gameState.wireStack[j - 1] = gameState.wireStack[j];
 			}
-			--wireCount;
+			gameState.wireStack[gameState.wireCount - 1] = -1;
+			gameState.wireCount = gameState.wireCount - 1;
+			break;
 		}
+	}
+}
+
+function serialize(){
+	return JSON.stringify(gameState);
+}
+
+function loadFromString(data){
+	try {
+		var loadedGameState = normalizeLoadedGameState(JSON.parse(data));
+		gameState = loadedGameState;
+		draw()
+	}
+	catch (error) {
+		console.warn("Failed to load saved game state", error);
 	}
 }
 
 buttonDelete.addEventListener("click", function() {
 	if (selectedDevice !== -1) {
-		deviceKinds[selectedDevice] = DEVICE_KIND_NONE;
+		gameState.deviceKinds[selectedDevice] = DEVICE_KIND_NONE;
 		for (var i = 0; i < 2 * MAX_WIRES; ++i) {
-			var node = wires[i];
+			var node = gameState.wires[i];
 			if (node === -1) continue;
 			if (Math.floor(node / 3) === selectedDevice) {
 				deleteWire(Math.floor(i / 2));
@@ -783,7 +885,9 @@ buttonStartEditing.addEventListener("click", function() {
 	toolbarView.hidden = true;
 	toolbarEditing.hidden = false;
 	clearInterval(simulationTimerHandle);
-	fillArray(nodeValues, false);
+	for (var i = 0; i < gameState.nodeValues.length; ++i) {
+		gameState.nodeValues[i] = false;
+	}
 	requestRedraw();
 })
 
@@ -800,6 +904,12 @@ buttonFinishEditing.addEventListener("click", function() {
 		requestRedraw();
 	}, simulationTimeout);
 })
+
+saveButton.addEventListener("click", function() {
+	saveGameStateToStorage();
+})
+
+
 
 updateCanvasSize();
 resetView();

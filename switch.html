@@ -37,25 +37,26 @@
 			<option value="5">bránu "a"</option>
 		</select></label>
 		<button id="delete-selected" disabled>Vymazať</button>
+		<button id="save">Uložiť</button>
 	</div>
 	<p>Tu máš tri vstupy: <dfn>prepínač</dfn> a dve <dfn>hodnoty</dfn>. Prepínač určuje, ktorú hodnotu chceme dostať na výstup. Ak je prepínač vypnutý, tak žiarovka má byť v takom stave ako hodnota 1. Ak je vypínač zapnutý, tak žiarovka má byť v takom stave ako hodnota 2.</p>
 </body>
 <script src="script.js"></script>
 <script>
-	builtinCount = 4;
+	gameState.builtinCount = 4;
 	var builtinLabels = ["prepínač", "hodnota 1", "hodnota 2", "výsledok"];
 
-	deviceKinds[0] = DEVICE_KIND_SWITCH;
-	devicePositions[0] = gridPositionFromMiddle(-5, -2);
+	gameState.deviceKinds[0] = DEVICE_KIND_SWITCH;
+	gameState.devicePositions[0] = gridPositionFromMiddle(-5, -2);
 
-	deviceKinds[1] = DEVICE_KIND_SWITCH;
-	devicePositions[1] = gridPositionFromMiddle(-5, 0);
+	gameState.deviceKinds[1] = DEVICE_KIND_SWITCH;
+	gameState.devicePositions[1] = gridPositionFromMiddle(-5, 0);
 
-	deviceKinds[2] = DEVICE_KIND_SWITCH;
-	devicePositions[2] = gridPositionFromMiddle(-5, 2);
+	gameState.deviceKinds[2] = DEVICE_KIND_SWITCH;
+	gameState.devicePositions[2] = gridPositionFromMiddle(-5, 2);
 
-	deviceKinds[3] = DEVICE_KIND_LIGHT;
-	devicePositions[3] = gridPositionFromMiddle(4, 0);
+	gameState.deviceKinds[3] = DEVICE_KIND_LIGHT;
+	gameState.devicePositions[3] = gridPositionFromMiddle(4, 0);
 
 	requestRedraw();
 
@@ -66,7 +67,7 @@
 	document.getElementById("test-circuit").addEventListener("click", function() {
 		if (test(3, 16, solution)) alert("Správne!");
 		else alert("Nesprávne.");
-		fillArray(nodeValues, 0);
+		fillArray(gameState.nodeValues, false);
 	})
 </script>
 </html>
