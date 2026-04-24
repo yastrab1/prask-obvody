@@ -508,8 +508,8 @@ if (PointerEvent) {
 					// TODO: find a place that doesn't intersect
 					deviceKinds[i] = addingDevice;
 					devicePositions[i] = selectedPosition;
-					addingDevice = -1;
-					selectAddDevice.value = "-1";
+					// addingDevice = -1;
+					// selectAddDevice.value = "-1";
 					requestRedraw();
 					return;
 				}
@@ -533,7 +533,7 @@ if (PointerEvent) {
 				if (i % 3 < 2) {
 					for (var j = 0; j < MAX_WIRES; ++j) {
 						if (wires[j] === i) {
-							addingWire = false;
+							// addingWire = false;
 							buttonAddWire.disabled = false;
 							return;
 						}
@@ -553,7 +553,7 @@ if (PointerEvent) {
 						dragCurrentY = dragOriginY;
 						selectedWire = j;
 						buttonDelete.disabled = false;
-						addingWire = false;
+						// addingWire = false;
 						buttonAddWire.disabled = false;
 						requestRedraw();
 						return;
@@ -774,6 +774,8 @@ buttonAddWire.addEventListener("click", function() {
 	selectedDevice = -1;
 	buttonDelete.disabled = true;
 	buttonAddWire.disabled = true;
+	addingDevice = -1
+	selectAddDevice.value = "-1";
 })
 
 buttonStartEditing.addEventListener("click", function() {
